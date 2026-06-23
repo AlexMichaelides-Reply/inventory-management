@@ -8,6 +8,38 @@
     <div v-if="loading" class="loading">{{ t('common.loading') }}</div>
     <div v-else-if="error" class="error">{{ error }}</div>
     <div v-else>
+      <!-- Submitted restocking orders appear here after being placed in the Restocking tab -->
+      <div v-if="submittedOrders.length > 0" class="card submitted-section">
+        <div class="card-header">
+          <h3 class="card-title">Submitted Orders ({{ submittedOrders.length }})</h3>
+          <p class="submitted-subtitle">Restocking orders pending fulfillment — 14 day lead time</p>
+        </div>
+        <div class="table-container">
+          <table class="submitted-table">
+            <thead>
+              <tr>
+                <th>Order #</th>
+                <th>Items</th>
+                <th class="text-right">Total Value</th>
+                <th>Order Date</th>
+                <th>Expected Delivery</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="order in submittedOrders" :key="order.id">
+                <td><strong>{{ order.order_number }}</strong></td>
+                <td>{{ order.items.length }} {{ order.items.length === 1 ? 'item' : 'items' }}</td>
+                <td class="text-right"><strong>{{ currencySymbol }}{{ order.total_value.toLocaleString() }}</strong></td>
+                <td>{{ formatDate(order.order_date) }}</td>
+                <td>{{ formatDate(order.expected_delivery) }}</td>
+                <td><span class="badge submitted">Submitted</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="stats-grid">
         <div class="stat-card success">
           <div class="stat-label">{{ t('status.delivered') }}</div>
@@ -138,7 +170,8 @@ export default {
         'Delivered': 'success',
         'Shipped': 'info',
         'Processing': 'warning',
-        'Backordered': 'danger'
+        'Backordered': 'danger',
+        'Submitted': 'submitted'
       }
       return statusMap[status] || 'info'
     }
@@ -153,6 +186,13 @@ export default {
       })
     }
 
+    // Restocking orders submitted this session have status "Submitted".
+    // Note: if a non-"all" status filter is active in the filter bar, the API
+    // will exclude submitted orders from the response — this is expected behavior.
+    const submittedOrders = computed(() =>
+      orders.value.filter(order => order.status === 'Submitted')
+    )
+
     onMounted(loadOrders)
 
     return {
@@ -160,6 +200,7 @@ export default {
       loading,
       error,
       orders,
+      submittedOrders,
       getOrdersByStatus,
       getOrderStatusClass,
       formatDate,
@@ -275,5 +316,25 @@ export default {
 .item-meta {
   font-size: 0.813rem;
   color: #64748b;
+}
+
+.submitted-section {
+  border-left: 4px solid #7c3aed;
+  margin-bottom: 1.5rem;
+}
+
+.submitted-subtitle {
+  font-size: 0.813rem;
+  color: #94a3b8;
+  margin-top: 0.25rem;
+}
+
+.submitted-table {
+  table-layout: auto;
+  width: 100%;
+}
+
+.text-right {
+  text-align: right;
 }
 </style>

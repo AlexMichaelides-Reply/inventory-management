@@ -2,7 +2,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import datetime, timedelta
 from mock_data import inventory_items, orders, demand_forecasts, backlog_items, spending_summary, monthly_spending, category_spending, recent_transactions, purchase_orders
+
+# In-memory list of restocking orders submitted this session.
+# Orders are also appended to `orders` so GET /api/orders returns them.
+restocking_orders = []
 
 app = FastAPI(title="Factory Inventory Management System")
 
@@ -120,6 +125,12 @@ class CreatePurchaseOrderRequest(BaseModel):
     expected_delivery_date: str
     notes: Optional[str] = None
 
+class CreateRestockingOrderRequest(BaseModel):
+    items: List[dict]  # [{sku, name, quantity, unit_price}]
+    total_value: float
+    warehouse: Optional[str] = None
+    category: Optional[str] = None
+
 # API endpoints
 @app.get("/")
 def root():
@@ -140,6 +151,29 @@ def get_inventory_item(item_id: str):
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     return item
+
+@app.post("/api/orders", response_model=Order, status_code=201)
+def create_restocking_order(request: CreateRestockingOrderRequest):
+    """Create a restocking order. Appended to the in-memory orders list so
+    GET /api/orders returns it automatically within the same session."""
+    now = datetime.utcnow()
+    seq = len(restocking_orders) + 1
+    order = {
+        "id": f"rst-{seq}",
+        "order_number": f"RST-{now.year}-{seq:04d}",
+        "customer": "Internal Restocking",
+        "items": request.items,
+        "status": "Submitted",
+        "order_date": now.strftime("%Y-%m-%dT%H:%M:%S"),
+        "expected_delivery": (now + timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%S"),
+        "total_value": request.total_value,
+        "actual_delivery": None,
+        "warehouse": request.warehouse,
+        "category": request.category,
+    }
+    restocking_orders.append(order)
+    orders.append(order)
+    return order
 
 @app.get("/api/orders", response_model=List[Order])
 def get_orders(
